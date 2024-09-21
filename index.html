@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Item Reordering App</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+    }
+    #itemInput {
+      width: 100%;
+      height: 100px;
+      margin-bottom: 10px;
+      padding: 10px;
+      font-size: 16px;
+    }
+    #processButton, #copyWithPrefixButton, #copyPlainButton {
+      padding: 10px 20px;
+      font-size: 16px;
+      margin: 5px 5px 5px 0;
+      cursor: pointer;
+    }
+    #itemList {
+      list-style: none;
+      padding: 0;
+      margin-top: 20px;
+    }
+    .listItem {
+      display: flex;
+      align-items: center;
+      padding: 10px;
+      margin-bottom: 5px;
+      background-color: #f2f2f2;
+      border-radius: 5px;
+      cursor: grab;
+    }
+    .listItem input.numberInput {
+      width: 60px;
+      margin-right: 10px;
+      font-size: 16px;
+      text-align: center;
+    }
+    .listItem .itemText {
+      flex-grow: 1;
+      font-size: 16px;
+    }
+    .dragging {
+      opacity: 0.5;
+    }
+  </style>
+</head>
+<body>
+
+  <h2>Enter Items</h2>
+  <textarea id="itemInput" placeholder="Enter items, one per line"></textarea>
+  <br>
+  <button id="processButton">Process List</button>
+
+  <h2>Reorder Items</h2>
+  <ul id="itemList"></ul>
+
+  <!-- Existing Copy Button with Prefix -->
+  <button id="copyWithPrefixButton">Copy to Clipboard (With "- " Prefix)</button>
+
+  <!-- New Copy Button without Prefix -->
+  <button id="copyPlainButton">Copy to Clipboard (Plain)</button>
+
+  <script>
+    let dragSrcEl = null;
+
+    const processButton = document.getElementById('processButton');
+    const copyWithPrefixButton = document.getElementById('copyWithPrefixButton');
+    const copyPlainButton = document.getElementById('copyPlainButton');
+    const itemList = document.getElementById('itemList');
+
+    processButton.addEventListener('click', function() {
+      const items = document.getElementById('itemInput').value.split('\n').filter(item => item.trim() !== '');
+      itemList.innerHTML = '';
+      items.forEach((item, index) => {
+        const li = createListItem(item.trim(), index + 1);
+        itemList.appendChild(li);
+      });
+      updateNumbers();
+    });
+
+    // Existing Copy Button Functionality (With "- " Prefix)
+    copyWithPrefixButton.addEventListener('click', function() {
+      const items = [];
+      itemList.querySelectorAll('.listItem').forEach(li => {
+        items.push('- ' + li.querySelector('.itemText').textContent);
+      });
+      const textToCopy = items.join('\n');
+      navigator.clipboard.writeText(textToCopy).then(() => {
+        alert('List copied to clipboard with "- " prefix!');
+      }, () => {
+        alert('Failed to copy text.');
+      });
+    });
+
+    // New Copy Button Functionality (Plain)
+    copyPlainButton.addEventListener('click', function() {
+      const items = [];
+      itemList.querySelectorAll('.listItem').forEach(li => {
+        items.push(li.querySelector('.itemText').textContent);
+      });
+      const textToCopy = items.join('\n');
+      navigator.clipboard.writeText(textToCopy).then(() => {
+        alert('List copied to clipboard!');
+      }, () => {
+        alert('Failed to copy text.');
+      });
+    });
+
+    function createListItem(text, number) {
+      const li = document.createElement('li');
+      li.className = 'listItem';
+      li.draggable = true;
+
+      const numberInput = document.createElement('input');
+      numberInput.type = 'number';
+      numberInput.className = 'numberInput';
+      numberInput.value = number;
+      numberInput.min = 1;
+      numberInput.addEventListener('change', onNumberInputChange);
+
+      const itemText = document.createElement('span');
+      itemText.className = 'itemText';
+      itemText.textContent = text;
+
+      li.appendChild(numberInput);
+      li.appendChild(itemText);
+
+      li.addEventListener('dragstart', handleDragStart);
+      li.addEventListener('dragover', handleDragOver);
+      li.addEventListener('drop', handleDrop);
+      li.addEventListener('dragend', handleDragEnd);
+
+      return li;
+    }
+
+    function onNumberInputChange(e) {
+      const newPosition = parseInt(e.target.value);
+      const li = e.target.parentElement;
+      const currentIndex = Array.from(itemList.children).indexOf(li);
+
+      if (newPosition < 1 || newPosition > itemList.children.length) {
+        e.target.value = currentIndex + 1;
+        return;
+      }
+
+      if (newPosition - 1 !== currentIndex) {
+        itemList.removeChild(li);
+        if (newPosition - 1 >= itemList.children.length) {
+          itemList.appendChild(li);
+        } else {
+          itemList.insertBefore(li, itemList.children[newPosition - 1]);
+        }
+        updateNumbers();
+      }
+    }
+
+    function updateNumbers() {
+      itemList.querySelectorAll('.listItem').forEach((li, index) => {
+        li.querySelector('.numberInput').value = index + 1;
+      });
+    }
+
+    function handleDragStart(e) {
+      dragSrcEl = this;
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/html', this.innerHTML);
+      this.classList.add('dragging');
+    }
+
+    function handleDragOver(e) {
+      if (e.preventDefault) {
+        e.preventDefault();
+      }
+      return false;
+    }
+
+    function handleDrop(e) {
+      if (e.stopPropagation) {
+        e.stopPropagation();
+      }
+      if (dragSrcEl !== this) {
+        dragSrcEl.innerHTML = this.innerHTML;
+        this.innerHTML = e.dataTransfer.getData('text/html');
+        addEventListeners(dragSrcEl);
+        addEventListeners(this);
+        updateNumbers();
+      }
+      return false;
+    }
+
+    function handleDragEnd() {
+      this.classList.remove('dragging');
+    }
+
+    function addEventListeners(li) {
+      li.querySelector('.numberInput').addEventListener('change', onNumberInputChange);
+      li.addEventListener('dragstart', handleDragStart);
+      li.addEventListener('dragover', handleDragOver);
+      li.addEventListener('drop', handleDrop);
+      li.addEventListener('dragend', handleDragEnd);
+    }
+  </script>
+
+</body>
+</html>
